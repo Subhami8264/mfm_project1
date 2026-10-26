@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project 1 - Pretrained Vision and Vision-Language Models</title>
+<style>
+  :root{
+    --ink:#16202b; --muted:#5b6b7c; --line:#d9e1ea; --bg:#ffffff;
+    --panel:#f4f7fa; --accent:#1a4e8a; --warn:#b23a00;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#e6edf3; --muted:#9bb0c3; --line:#2b3947; --bg:#0f151b;
+      --panel:#161f28; --accent:#79b1f0; --warn:#ff9a5c;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#e6edf3; --muted:#9bb0c3; --line:#2b3947; --bg:#0f151b;
+    --panel:#161f28; --accent:#79b1f0; --warn:#ff9a5c;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.62 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:880px; margin:0 auto; padding:44px 16px 90px}
+  header{border-bottom:1px solid var(--line); padding-bottom:22px}
+  h1{font-size:1.85rem; line-height:1.25; margin:0 0 8px; letter-spacing:-.01em}
+  .sub{color:var(--muted); margin:0 0 3px}
+  h2{font-size:1.28rem; margin:40px 0 10px; color:var(--accent);
+     border-bottom:1px solid var(--line); padding-bottom:5px}
+  h3{font-size:1.02rem; margin:24px 0 6px}
+  p{margin:0 0 13px}
+  a{color:var(--accent)}
+  ul{margin:0 0 14px; padding-left:22px} li{margin-bottom:6px}
+  table{border-collapse:collapse; width:100%; margin:13px 0 18px; font-size:.9rem}
+  th,td{border:1px solid var(--line); padding:6px 9px; text-align:left; vertical-align:top}
+  th{background:var(--panel); font-weight:600}
+  figure{margin:18px 0; padding:0}
+  figure img{width:100%; height:auto; border:1px solid var(--line); border-radius:5px; background:#fff}
+  figcaption{color:var(--muted); font-size:.87rem; margin-top:6px}
+  code,pre{font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.86rem}
+  pre{background:var(--panel); border:1px solid var(--line); border-radius:5px;
+      padding:11px 13px; overflow-x:auto; white-space:pre-wrap}
+  .note{border-left:3px solid var(--warn); padding:3px 0 3px 13px; margin:16px 0}
+  .key{background:var(--panel); border:1px solid var(--line); border-radius:5px; padding:13px 15px; margin:16px 0}
+  .toc{background:var(--panel); border:1px solid var(--line); border-radius:5px; padding:12px 16px; margin:22px 0}
+  .toc ol{margin:6px 0 0; padding-left:22px} .toc li{margin-bottom:3px}
+  footer{margin-top:50px; padding-top:16px; border-top:1px solid var(--line);
+         color:var(--muted); font-size:.87rem}
+  @media print{
+    :root{--ink:#000; --muted:#444; --line:#bbb; --bg:#fff; --panel:#f2f2f2;
+          --accent:#14406f; --warn:#8a2c00;}
+    body{font-size:10.5pt}
+    .wrap{max-width:none; padding:0}
+    h2{page-break-after:avoid} h3{page-break-after:avoid}
+    figure,table,.key,.note{page-break-inside:avoid}
+    .toc{display:none}
+    a{color:#14406f; text-decoration:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Project 1 - Pretrained Vision and Vision-Language Models</h1>
+  <p class="sub">CSCI 5499A / ENGR 6999F · Multimodal Foundation Models · University of Mississippi</p>
+  <p class="sub">Subhami Mohan · 26 October 2026</p>
+</header>
+
+<nav class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#setup">Introduction and setup</a></li>
+    <li><a href="#collection">The image collection</a></li>
+    <li><a href="#p1t1">Part 1 Task 1 - patches and model inputs</a></li>
+    <li><a href="#p1t2">Part 1 Task 2 - ViT predictions</a></li>
+    <li><a href="#p2t1">Part 2 Task 1 - the CLIP similarity computation</a></li>
+    <li><a href="#p2t2">Part 2 Task 2 - prompt wording</a></li>
+    <li><a href="#p2t3">Part 2 Task 3 - the representation space</a></li>
+    <li><a href="#p3">Part 3 - a controlled study, in two designs</a></li>
+    <li><a href="#different">What I would do differently</a></li>
+    <li><a href="#declaration">Declaration and appendix</a></li>
+  </ol>
+</nav>
+
+<h2 id="setup">1. Introduction and setup</h2>
+<p>This project examines two frozen pretrained models: a supervised Vision Transformer (ViT-B/16) trained on
+ImageNet-1k, and a contrastively trained vision-language model (CLIP ViT-B/32). No training or fine-tuning is
+performed anywhere in this work. Part 1 reconstructs the ViT input pipeline and evaluates its predictions on a
+self-collected image set. Part 2 reimplements the CLIP image-text similarity computation from first principles and
+verifies it against the library's own forward pass. Part 3 is a controlled study designed to test a specific
+hypothesis about what CLIP's similarity measures.</p>
+
+<table>
+  <tr><th>Python</th><td>3.11.17</td></tr>
+  <tr><th>Platform</th><td>Windows-10-10.0.26300-SP0</td></tr>
+  <tr><th>torch / torchvision</th><td>2.14.1+cpu / 0.29.1+cpu</td></tr>
+  <tr><th>open_clip</th><td>3.3.0</td></tr>
+  <tr><th>Device</th><td>cpu (cuda_available = False)</td></tr>
+  <tr><th>Part 1 checkpoint</th><td>torchvision <code>vit_b_16</code>, <code>ViT_B_16_Weights.IMAGENET1K_V1</code></td></tr>
+  <tr><th>Part 2 checkpoint</th><td>open_clip <code>ViT-B-32</code>, <code>pretrained='openai'</code></td></tr>
+</table>
+<p>Recorded automatically by <code>part_1.py env</code> into <code>results/environment.json</code>. Preprocessing in
+both parts is each checkpoint's own transform rather than a hand-written one, so images are normalised exactly as the
+respective model expects. CLIP image embeddings are encoded once and cached to
+<code>results/clip_image_embeddings.pt</code>, so the encoders are not re-run between Part 2 Tasks 1, 2 and 3 or by
+the Part 3 negation study.</p>
+
+<h2 id="collection">2. The image collection</h2>
+<p>Five categories, six images each, thirty in total. All images come from Wikimedia Commons, which hosts only freely
+licensed or public-domain media. <code>data/image_licences.csv</code> records, for every file, the source page, the
+creator, the licence name, the licence URL and the original image URL. The ten Part 3 comparison sets are recorded the
+same way in <code>data/pair_licences.csv</code>.</p>
+<p>No images were discarded. All thirty downloaded files were inspected and all thirty showed their category clearly
+enough to keep, so the licence file contains thirty rows corresponding exactly to the thirty files on disk.</p>
+
+<h2 id="p1t1">3. Part 1 Task 1 - patches and model inputs</h2>
+<table>
+  <tr><th>Quantity</th><th>Value</th></tr>
+  <tr><td>Image size</td><td>224 × 224</td></tr>
+  <tr><td>Patch size</td><td>16 × 16</td></tr>
+  <tr><td>Patches per side</td><td>224 / 16 = 14</td></tr>
+  <tr><td>Number of patches</td><td>14 × 14 = <strong>196</strong></td></tr>
+  <tr><td>Sequence length</td><td>196 + 1 CLS = <strong>197</strong></td></tr>
+  <tr><td>Patch projection weight</td><td>Conv2d kernel 16, stride 16 → (768, 3, 16, 16)</td></tr>
+  <tr><td>Positional embedding</td><td>(1, 197, 768)</td></tr>
+  <tr><td>CLS token</td><td>(1, 1, 768)</td></tr>
+</table>
+
+<figure>
+  <img src="code/figures/part1_task1_patches.png" alt="A 224 by 224 image divided into a 14 by 14 grid of 16-pixel patches">
+  <figcaption>Figure 1. The patch grid produced by my <code>patchify</code> function.</figcaption>
+</figure>
+
+<h3>Patch projection</h3>
+<p>Each 16 × 16 × 3 patch holds 768 pixel values. These are multiplied by a learned matrix to produce a
+768-dimensional token. torchvision implements this as a Conv2d whose kernel and stride both equal the patch size,
+which applies the same linear map to each non-overlapping patch - arithmetically identical to flatten-then-matmul,
+just a faster implementation.</p>
+
+<h3>Positional embeddings</h3>
+<p>Self-attention computes a weighted sum over tokens, so it is permutation-equivariant: permute the input patches and
+the outputs permute identically, carrying no information about where a patch came from. A learned position vector is
+therefore added to each token embedding, so the model can distinguish a top-left patch from a bottom-right one.</p>
+
+<h3>The CLS token</h3>
+<p>A single learned vector prepended to the sequence. It belongs to no patch and contains no image content of its own
+before attention runs; it accumulates information from every patch through self-attention, and the classification head
+reads only its final output. That is why the sequence length is 197 and not 196.</p>
+
+<h3>My visualisation versus the model's projection</h3>
+<p>My <code>patchify</code> only cuts the image into tiles so they can be displayed. The model's <code>conv_proj</code> additionally multiplies each tile by weights learned during ImageNet
+training, turning raw pixels into an embedding. Figure 1 therefore shows the input to that step, not its output.</p>
+
+<h2 id="p1t2">4. Part 1 Task 2 - ViT predictions</h2>
+<table>
+  <tr><th>My category</th><th>ImageNet index</th><th>Exact class string</th></tr>
+  <tr><td>golden_retriever</td><td>207</td><td>golden retriever</td></tr>
+  <tr><td>tabby_cat</td><td>281</td><td>tabby</td></tr>
+  <tr><td>coffee_mug</td><td>504</td><td>coffee mug</td></tr>
+  <tr><td>acoustic_guitar</td><td>402</td><td>acoustic guitar</td></tr>
+  <tr><td>school_bus</td><td>779</td><td>school bus</td></tr>
+</table>
+<p>The complete top-five prediction list for all thirty images, with the probability of each of the five, is in
+<code>results/part1_predictions.csv</code>, included in the submission; the discussion below quotes from it.</p>
+
+<figure>
+  <img src="code/figures/part1_task2_confusion.png" alt="Confusion matrix over the five categories">
+  <figcaption>Figure 2. Confusion matrix under strict label matching. Fifteen predictions fell outside the five
+  categories entirely and do not appear in it.</figcaption>
+</figure>
+
+<h3>Accuracy depends on the class-matching rule</h3>
+<p>ImageNet-1k contains several mutually exclusive classes for the same everyday object. Cats occupy at least five:
+tabby (281), tiger cat (282), Persian cat (283), Siamese cat (284), Egyptian cat (285). A photograph of an ordinary
+domestic cat can be assigned to any of them, and only "tabby" counts as correct under strict matching. The same holds
+for buses (school bus 779 versus minibus 654) and for drinking vessels (coffee mug 504, cup 968, espresso 967). So a
+prediction of "Egyptian cat" at probability 0.888 scores identically to "church" at 0.700, although one identifies the
+object correctly and the other does not.</p>
+<p>To separate "the model misidentified the object" from "the model chose a sibling label", I define a second measure
+<em>before</em> counting. A prediction is <strong>object-correct</strong> if the predicted ImageNet class denotes the
+same everyday object as the category: any of the five cat classes for tabby_cat, any bus class for school_bus, any mug
+or cup class for coffee_mug, any guitar class for acoustic_guitar, any dog breed for golden_retriever.</p>
+<table>
+  <tr><th>Measure</th><th>Value</th></tr>
+  <tr><td>Strict top-1 (exact nominated index)</td><td>15 / 30 = <strong>0.500</strong></td></tr>
+  <tr><td>Object-correct (any class denoting the same object)</td><td>27 / 30 = <strong>0.900</strong></td></tr>
+  <tr><td>Right object, sibling label</td><td>12 / 30 = 0.400</td></tr>
+</table>
+<p>Only three predictions are genuine object errors: coffee_mug_05 → notebook, school_bus_01 → church, school_bus_06 →
+car wheel. Forty per cent of the apparent failures are the model naming a cat a different kind of cat, or a bus a
+different kind of bus.</p>
+<p>Asked "does this model recognise these five categories", the figure to quote is 0.900, because the question is about
+objects and the rule was fixed before counting. The strict 0.500 answers a narrower question - whether the model
+selects one particular index out of several that denote the same thing - and that question is about the label set, not
+about recognition. Reporting either number alone would mislead; both are given, with the rule stated.</p>
+
+<h3>Two successes</h3>
+<p><strong>acoustic_guitar_03.jpg</strong>, "acoustic guitar" at <strong>0.956</strong>, the highest confidence in the
+collection. The photograph is a close-up of the headstock alone: six tuning machines, the nut, the strings converging,
+and the maker's name, against a wooden cabinet. Less than a fifth of the instrument is visible, yet confidence is
+higher than for any whole-guitar image in the set. The headstock has a distinctive and repeatable geometry, which
+suggests the class is carried by a characteristic part rather than by the overall silhouette.</p>
+<p><strong>golden_retriever_01.jpg</strong>, "golden retriever" at <strong>0.911</strong>. A tight black-and-white
+portrait of the dog's face. The breed is named for its colour, and the colour has been removed, so the decision must
+rest on muzzle shape, ear set and fur texture. The top-5 is entirely other retrievers and large pale dogs, which is
+consistent with shape rather than colour driving the answer.</p>
+
+<h3>Two failures, and a third that is not the model's fault</h3>
+<p><strong>acoustic_guitar_04.jpg</strong> → "electric guitar" at 0.160. An extreme close-up of the preamp and EQ panel
+set into the side of the guitar body: a black rectangular control plate with sliders, on glossy amber wood. There is no
+sound hole, no neck, no strings and no body outline anywhere in the frame. The visible evidence is electronics mounted
+in wood, and the model answered accordingly. This is also the lowest top-1 probability of all thirty images, with
+"acoustic guitar" second at 0.135 - the model is not confident, and its uncertainty is appropriate to how little of the
+instrument is shown.</p>
+<p><strong>golden_retriever_03.jpg</strong> → "clumber" at 0.514. A cream-coloured retriever standing in profile on
+grass in front of a red barn. Clumber spaniels are white, heavy-set and photographed in exactly this stance, and this
+dog's coat is pale enough to read as white. "golden retriever" is second at 0.159. The error is a sibling-breed
+confusion driven by an atypical coat colour for the category, not a failure to see a dog.</p>
+<p><strong>school_bus_01.jpg</strong> → "church" at 0.700. The frame is dominated by a church with a tall clock tower;
+the vehicle is a blue city coach, small, in the lower right corner. The model named the largest and most salient object
+in the picture, and it was right to. This is the mislabelled item identified in section 2: the prediction is a correct
+description of the photograph and an incorrect match to the label I assigned it.</p>
+<p>A pattern connects three of these. In acoustic_guitar_04, school_bus_01 and coffee_mug_05 (→ "notebook" at 0.387, a
+black-and-white overhead shot of a laptop and a phone with the mug small at the right edge), the nominated object is
+present but is not the dominant object in the frame. A single top-1 label forces the model to choose one object per
+image, and it chooses the salient one. These failures are a property of the task definition at least as much as of the
+model.</p>
+
+<h3>The fixed-output limitation</h3>
+<p>This model can only ever answer with one of 1000 labels fixed at training time. It cannot be asked whether a person
+is riding or pushing a bicycle, whether a mug sits in grass or grass sits in a mug, or anything else expressed as free
+text. The question space is closed. That restriction is exactly what Part 2 removes, because CLIP's candidate set is
+whatever text is supplied at inference time.</p>
+
+<h2 id="p2t1">5. Part 2 Task 1 - the CLIP similarity computation</h2>
+<p>Implemented in four steps from the image and text features rather than from the library's packaged output:
+L2-normalise both sets of features; take the matrix of dot products, which for unit vectors is the cosine similarity;
+multiply by the model's learned logit scale; apply a softmax along the candidate-text axis.</p>
+<pre>learned logit scale = exp(4.6052) = 100.000   →   tau = 1/100 = 0.01
+max |my logits − open_clip's own forward pass| = 8.58e-06
+zero-shot top-1 with "a photo of a {}" = 0.967  (29/30)</pre>
+<p>That difference is float32 rounding, not a discrepancy, so the reimplementation is confirmed correct.</p>
+
+<figure>
+  <img src="code/figures/part2_task1_heatmap.png" alt="Heatmap of cosine similarities between images and candidate texts">
+  <figcaption>Figure 3. Image-text cosine similarities.</figcaption>
+</figure>
+
+<p>All three quantities for the first image, which is a golden retriever:</p>
+<table>
+  <tr><th>Candidate text</th><th>Cosine</th><th>Logit</th><th>Softmax</th></tr>
+  <tr><td>a photo of a golden retriever</td><td>0.3024</td><td>30.236</td><td>0.9999</td></tr>
+  <tr><td>a photo of a tabby cat</td><td>0.2051</td><td>20.508</td><td>0.0001</td></tr>
+  <tr><td>a photo of a coffee mug</td><td>0.2075</td><td>20.751</td><td>0.0001</td></tr>
+  <tr><td>a photo of a acoustic guitar</td><td>0.1781</td><td>17.810</td><td>0.0000</td></tr>
+  <tr><td>a photo of a school bus</td><td>0.1819</td><td>18.188</td><td>0.0000</td></tr>
+</table>
+
+<h3>Cosine, logit and probability are three different things</h3>
+<p>A cosine similarity is geometry: the angle between two unit vectors, bounded in [−1, 1], and a property of that one
+image-text pair alone. A logit is the same number multiplied by the learned scale of 100 - still per-pair, but
+stretched so a softmax can separate candidates that differ by hundredths of a cosine. A softmax probability is not a
+property of a pair at all: it is computed across a row, so it depends on every candidate text in the comparison.</p>
+<p>Note how small the raw cosines are. The correct caption scores 0.3024 and the worst wrong one 0.1781 - a gap of
+about 0.12. After multiplication by 100 that becomes a gap of roughly 12 logits, which the softmax turns into 0.9999
+versus 0.0000. The near-certainty in the last column is manufactured by the scale factor; it is not evidence that the
+model is certain.</p>
+
+<h3>Why the probabilities depend on the candidate set</h3>
+<p>For <code>acoustic_guitar_04.jpg</code> the five cosine similarities are 0.1973, 0.2044, 0.1922, 0.2313 and 0.2356
+for golden retriever, tabby cat, coffee mug, acoustic guitar and school bus respectively.</p>
+<table>
+  <tr><th>Candidate</th><th>Cosine</th><th>p with 5 candidates</th><th>p with "school bus" removed</th></tr>
+  <tr><td>a photo of a acoustic guitar</td><td>0.2313</td><td>0.3761</td><td><strong>0.8918</strong></td></tr>
+  <tr><td>a photo of a school bus</td><td>0.2356</td><td>0.5782</td><td>removed</td></tr>
+  <tr><td>a photo of a tabby cat</td><td>0.2044</td><td>0.0255</td><td>0.0605</td></tr>
+  <tr><td>a photo of a golden retriever</td><td>0.1973</td><td>0.0126</td><td>0.0298</td></tr>
+  <tr><td>a photo of a coffee mug</td><td>0.1922</td><td>0.0075</td><td>0.0179</td></tr>
+</table>
+<div class="key">
+<p style="margin:0"><strong>Nothing about the model or the image changed between the two columns.</strong> The cosine
+for "acoustic guitar" is 0.2313 in both. Deleting one candidate text raises its probability from 0.3761 to 0.8918 and
+changes the prediction from wrong to right. A probability of 0.89 here does not mean the model recognises the guitar
+better; it means it was asked an easier question. This is why a softmax value cannot be quoted as a confidence in the
+model without also quoting the candidate set it was computed over.</p>
+</div>
+
+<h2 id="p2t2">6. Part 2 Task 2 - prompt wording</h2>
+<table>
+  <tr><th>Template</th><th>Top-1 accuracy</th><th>Images correct</th></tr>
+  <tr><td><code>{}</code></td><td>1.000</td><td>30 / 30</td></tr>
+  <tr><td><code>a photo of a {}</code></td><td>0.967</td><td>29 / 30</td></tr>
+  <tr><td><code>an image showing a {}</code></td><td>1.000</td><td>30 / 30</td></tr>
+</table>
+<p>A confusion matrix was produced for each template:
+<code>code/figures/part2_task2_cm_X.png</code>,
+<code>code/figures/part2_task2_cm_a_photo_of_a_X.png</code> and
+<code>code/figures/part2_task2_cm_an_image_showing_a_X.png</code>. Two of the three are diagonal; the third differs by the
+single image below.</p>
+<div class="key">
+<p style="margin:0"><strong>These three numbers differ by exactly one image.</strong> With 30 images, one image is
+worth 1/30 = 0.033 of accuracy, which is precisely the spread between 1.000 and 0.967. The experiment therefore does
+not show that a bare label beats "a photo of a"; it shows that the three templates are indistinguishable at this
+sample size. Reporting the ranking as a finding would be reading noise as signal.</p>
+</div>
+<table>
+  <tr><th>Template</th><th>Prediction for acoustic_guitar_04.jpg</th><th>Probability</th></tr>
+  <tr><td><code>{}</code></td><td>acoustic_guitar</td><td>0.674</td></tr>
+  <tr><td><code>a photo of a {}</code></td><td>school_bus</td><td>0.576</td></tr>
+  <tr><td><code>an image showing a {}</code></td><td>acoustic_guitar</td><td>0.579</td></tr>
+</table>
+<p>The image is the preamp close-up described in section 4. The cosine similarities explain why wording was enough to
+flip it: CLIP scores "acoustic guitar" at 0.2313 and "school bus" at 0.2356, a gap of 0.0043, roughly a twentieth of
+the 0.0878 mean margin CLIP achieves on the rest of the collection. When two candidates sit that close, a change to the
+template moves the text embeddings by more than the gap between them, and the argmax follows. All three probabilities
+are near 0.6 rather than the 0.9999 of a clean case, so the model itself signals the decision is marginal. The
+remaining twenty-nine images gave the same prediction under all three templates: the sensitivity is not general, it is
+concentrated in the one image where the evidence is weakest.</p>
+
+<h3>Why prompting is not fine-tuning</h3>
+<p>Every weight is frozen throughout. Changing the template changes only the text that gets encoded, which moves the
+text embeddings and therefore the similarity matrix. Fine-tuning would compute gradients and update the encoders; here
+no gradient is taken and nothing is stored. The same checkpoint gives different answers purely because it was asked a
+differently worded question.</p>
+
+<h3>Comparison with Part 1 - and why it is not a fair one</h3>
+<p>ViT scored 0.500 under strict matching (0.900 object-correct) and CLIP 0.967, but these are not comparable as
+"better" and "worse". ViT chooses among 1000 fixed classes, several of which are near-synonyms competing for the same
+photograph; CLIP chooses among the five texts I supplied, with no competing sibling labels at all. The two models also
+have different training objectives and training data, and CLIP has never been told these five categories exist. A
+like-for-like comparison would require giving both models the same candidate set.</p>
+
+<h2 id="p2t3">7. Part 2 Task 3 - the image representation space</h2>
+<table>
+  <tr><th>Measure</th><th>Value</th></tr>
+  <tr><td>Mean cosine similarity within a category</td><td>0.7448</td></tr>
+  <tr><td>Mean cosine similarity across categories</td><td>0.5150</td></tr>
+  <tr><td>Separation (within − across)</td><td>0.2298</td></tr>
+</table>
+<p>The embedding does group images of the same category together, but the grouping is a matter of degree rather than a
+clean partition: the across-category mean of 0.515 is far from zero, so unrelated images are still moderately similar
+in this space.</p>
+
+<figure>
+  <img src="code/figures/part2_task3_image_image.png" alt="Image-to-image cosine similarity heatmap grouped by category">
+  <figcaption>Figure 4. Image-image similarities, grouped by category.</figcaption>
+</figure>
+
+<table>
+  <tr><th>Cosine</th><th>Most similar pairs within a category</th><th>Category</th></tr>
+  <tr><td>0.9460</td><td>tabby_cat_04 ~ tabby_cat_05</td><td>tabby_cat</td></tr>
+  <tr><td>0.9430</td><td>acoustic_guitar_01 ~ acoustic_guitar_06</td><td>acoustic_guitar</td></tr>
+  <tr><td>0.9412</td><td>tabby_cat_05 ~ tabby_cat_06</td><td>tabby_cat</td></tr>
+</table>
+<table>
+  <tr><th>Cosine</th><th>Most similar pairs across categories</th></tr>
+  <tr><td>0.7664</td><td>golden_retriever_06 ~ tabby_cat_02</td></tr>
+  <tr><td>0.7640</td><td>golden_retriever_06 ~ tabby_cat_06</td></tr>
+  <tr><td>0.7557</td><td>golden_retriever_06 ~ tabby_cat_04</td></tr>
+  <tr><td>0.7434</td><td>golden_retriever_06 ~ tabby_cat_05</td></tr>
+  <tr><td>0.7265</td><td>golden_retriever_03 ~ tabby_cat_04</td></tr>
+</table>
+<p>Four of the five highest cross-category similarities involve the same image, which is a more specific observation
+than "dogs and cats are similar". Opening them answers why. <code>golden_retriever_06.jpg</code> is a puppy
+photographed head-on, its face and both front paws resting over a weathered wooden rail, the head filling most of the
+frame, in soft outdoor light. <code>tabby_cat_04</code>, <code>_05</code> and <code>_06</code> are head-and-shoulders
+portraits of the same cat resting on a stone step, face toward or across the camera, also filling the frame in soft
+outdoor light.</p>
+<p>What the four closest pairs share is not species. It is a resting animal photographed close up and face-forward,
+the head occupying most of the frame, the body supported on a horizontal surface, soft fur against a neutral
+grey-brown background, and the same muted outdoor palette. The dog and the cats are photographed the same way.</p>
+<p>The conclusion supported by these thirty images is that the image embedding carries pose, framing, scale and
+background alongside object identity, and that when two pictures agree on all of those, a difference of species is not
+enough to separate them cleanly. The within-category mean of 0.745 against an across-category mean of 0.515 shows
+category structure is present; the 0.766 between a puppy and a cat shows it is not the only thing present. This claim
+is scoped to this collection.</p>
+
+<h2 id="p3">8. Part 3 - a controlled study of a CLIP limitation</h2>
+<p>This part reports two designs. The first asked whether CLIP distinguishes an action; it could not be executed
+reliably and is reported as a failed design together with the evidence that it failed. The second asks whether CLIP
+registers negation, and was built specifically to remove the weakness that defeated the first.</p>
+
+<h3>8.1 First design: riding versus pushing a bicycle</h3>
+<p><strong>Hypothesis.</strong> CLIP's image-text similarity is driven mainly by which objects are present. If two
+captions name the same object and differ only in the action, matching should fall towards chance - 0.50 per image,
+0.25 for a set in which both images are matched correctly.</p>
+<p><strong>Design.</strong> Ten matched sets, twenty images. Each set pairs a person riding a bicycle (A) with a person
+on foot with a bicycle (B), scored against "a person riding a bicycle" and "a person pushing a bicycle". Both captions
+name the bicycle, so recognising the object cannot resolve the choice; only the verb distinguishes them. Selection
+rules: both images show a bicycle clearly and at similar scale; the action must be unambiguous at a glance; unrelated
+properties (outdoor setting, one person, daylight, comparable viewpoint) kept as similar as practical.</p>
+<p><strong>Why it failed.</strong> The images were collected by keyword search against an openly licensed image
+repository. The search engine matches file titles and descriptions, which say what a picture is called, not what action
+it depicts. Four rounds of query revision and manual replacement did not fix this.</p>
+<table>
+  <tr><th>Collection attempt</th><th>Image accuracy</th><th>Both-correct</th><th>Problem</th></tr>
+  <tr><td>v1 keyword queries</td><td>0.500 (10/20)</td><td>0.400 (4/10)</td><td>B queries asked for repairing / carrying / parked</td></tr>
+  <tr><td>v2 revised queries</td><td>0.350 (7/20)</td><td>0.200 (2/10)</td><td>three sets not replaced (API rate limit)</td></tr>
+  <tr><td>v3 complete set</td><td>0.450 (9/20)</td><td>0.200 (2/10)</td><td>one image duplicated across two sets</td></tr>
+  <tr><td>v4 after manual edits</td><td>0.400 (8/20)</td><td>0.100 (1/10)</td><td>replacement showed riding, not pushing</td></tr>
+</table>
+
+<figure>
+  <img src="code/figures/part3_contact_sheet.png" alt="Contact sheet of all twenty bicycle comparison images">
+  <figcaption>Figure 5. The visual audit that ended the first design. Every row should be riding on the left, pushing
+  on the right. Most B images do not show a person pushing a bicycle at all.</figcaption>
+</figure>
+
+<figure>
+  <img src="code/figures/part3_task2_sets.png" alt="Cosine similarities for each bicycle comparison set">
+  <figcaption>Figure 6. The 2 × 2 similarity matrix for each of the ten sets, as required by Task 2. All sets are
+  reported, successful and unsuccessful.</figcaption>
+</figure>
+
+<p><strong>Conclusion of the first design.</strong> The accuracy figure is uninformative and is not used to support any
+claim. The exact binomial two-sided p for the final 8/20 against chance is 0.50, so it is not distinguishable from
+guessing, but that statement is meaningless when the ground-truth labels do not describe the images.</p>
+
+<h4>What survived from it</h4>
+<p>One measurement from this design needs no images and is unaffected by the collection failure: the geometry of the
+captions themselves.</p>
+<table>
+  <tr><th>Pair of descriptions</th><th>Cosine</th></tr>
+  <tr><td>"a person riding a bicycle" vs "a person pushing a bicycle"</td><td><strong>0.9790</strong></td></tr>
+  <tr><td>"a person riding a bicycle" vs "a person riding a horse"</td><td>0.9056</td></tr>
+  <tr><td>"a person riding a bicycle" vs "a person cooking dinner"</td><td>0.8213</td></tr>
+</table>
+<figure>
+  <img src="code/figures/part3_task2_text_text.png" alt="Similarity among the bicycle text descriptions">
+  <figcaption>Figure 7. Similarity among the text descriptions.</figcaption>
+</figure>
+<p>Changing the verb while holding the object fixed moves the embedding by 0.021. Changing the object while holding the
+verb fixed moves it by 0.073 - about three and a half times further. In this text encoder the noun dominates the verb.
+That observation motivated the second design.</p>
+
+<h3>8.2 Second design: does CLIP register negation?</h3>
+<p><strong>Hypothesis.</strong> Negation reverses the meaning of a sentence while changing very few tokens. If CLIP's
+text encoder composes meaning, "a photo of a tabby cat" and "a photo of no tabby cat" should sit far apart, and an
+image containing a cat should prefer the first by a wide margin. If the embedding is instead dominated by which nouns
+appear, the two captions will be close and the image will barely separate them.</p>
+<p><strong>Design.</strong> The thirty images already collected, licensed and visually checked for Parts 1 and 2. Each
+image is scored against the caption pair for its own category, so every comparison differs by exactly one word.
+Nothing new was downloaded, and the content of every image was already established. The quantity being varied lives in
+the text, where it is under exact control - which is precisely what the first design lacked.</p>
+<p><strong>Baseline for scale.</strong> Part 2 measured how far CLIP separates the correct object from the best
+competing object on these same images: mean margin <strong>0.0878</strong>. That is the model working well, in the same
+units.</p>
+<table>
+  <tr><th>Measure</th><th>Value</th><th>Reference</th></tr>
+  <tr><td>Images preferring the positive caption</td><td>24 / 30 = 0.800</td><td>chance 0.500</td></tr>
+  <tr><td>Exact binomial two-sided p</td><td>0.0014</td><td>differs from chance</td></tr>
+  <tr><td>Mean |margin| positive vs negated</td><td>0.0098</td><td>object margin 0.0878</td></tr>
+  <tr><td>Ratio</td><td><strong>9.0× smaller</strong></td><td>-</td></tr>
+  <tr><td>Smallest / largest margin</td><td>0.0011 / 0.0187</td><td>-</td></tr>
+</table>
+<div class="key">
+<p style="margin:0"><strong>The honest reading is two-sided, and both sides matter.</strong> CLIP is not blind to
+negation: 24 of 30 is significantly above chance (p = 0.0014), so adding "no" does shift the embedding in the right
+direction. But the shift is nine times smaller than the shift the model uses to tell a cat from a bus. A word that
+reverses the truth of a sentence moves the representation about a ninth as far as swapping one object noun for another.
+That is the finding: not an absence of sensitivity, but a gross mismatch of scale between logical content and object
+content.</p>
+</div>
+
+<figure>
+  <img src="code/figures/part3b_margins.png" alt="Per-image positive and negated cosine similarities with margins">
+  <figcaption>Figure 8. Positive versus negated caption for each of the thirty images.</figcaption>
+</figure>
+
+<h4>Text-only geometry</h4>
+<table>
+  <tr><th>Category</th><th>cos(positive, negated)</th></tr>
+  <tr><td>tabby cat</td><td>0.9750</td></tr>
+  <tr><td>acoustic guitar</td><td>0.9672</td></tr>
+  <tr><td>golden retriever</td><td>0.9600</td></tr>
+  <tr><td>coffee mug</td><td>0.9553</td></tr>
+  <tr><td>school bus</td><td>0.9549</td></tr>
+</table>
+<figure>
+  <img src="code/figures/part3b_text_text.png" alt="Similarity among positive and negated captions">
+  <figcaption>Figure 9. A sentence and its own denial sit between 0.955 and 0.975 in cosine, while captions naming
+  entirely different objects sit at roughly 0.69 to 0.81 in the same space.</figcaption>
+</figure>
+<p>The encoder treats "no X" as a sentence that is mostly about X. This is the mechanism behind the small image-side
+margin: if the two text vectors are nearly parallel, there is very little room between them for the picture to decide
+anything.</p>
+
+<h4>Where negation failed, and what those images have in common</h4>
+<table>
+  <tr><th>Image</th><th>Margin</th><th>cos positive</th><th>ViT prediction in Part 1</th></tr>
+  <tr><td>golden_retriever_02.jpg</td><td>−0.0011</td><td>0.2531</td><td>Greater Swiss Mountain dog (wrong)</td></tr>
+  <tr><td>golden_retriever_03.jpg</td><td>−0.0019</td><td>0.2890</td><td>clumber (wrong)</td></tr>
+  <tr><td>golden_retriever_04.jpg</td><td>−0.0044</td><td>0.2693</td><td>golden retriever (correct)</td></tr>
+  <tr><td>golden_retriever_05.jpg</td><td>−0.0076</td><td>0.2406</td><td>Pembroke (wrong)</td></tr>
+  <tr><td>coffee_mug_05.jpg</td><td>−0.0051</td><td>0.2335</td><td>notebook (wrong)</td></tr>
+  <tr><td>acoustic_guitar_04.jpg</td><td>−0.0045</td><td>0.2313</td><td>electric guitar (wrong)</td></tr>
+</table>
+<p>Four of the six failures are golden retrievers. That category alone scores 2/6 with a mean margin of −0.0004, while
+tabby cat and school bus score 6/6. The images confirm why. <code>golden_retriever_02.jpg</code> shows a golden
+retriever and a beagle standing together on grass, the beagle in a harness in the foreground.
+<code>golden_retriever_04.jpg</code> is a close-up of a beagle and a golden retriever side by side indoors, both faces
+filling the frame. <code>golden_retriever_05.jpg</code> shows the two dogs from behind on grass, and here the retriever
+is pale, turned away and no larger than the beagle. In all three the nominated category is one of two animals present,
+and in the third it is the less prominent one. <code>coffee_mug_05.jpg</code> and <code>acoustic_guitar_04.jpg</code>
+are the peripheral-object images described in section 4.</p>
+<p>Five of the six were also misclassified by ViT in Part 1, independently of CLIP and with a different training
+objective. Across all thirty images the correlation between cos(positive) and the margin is <strong>+0.64</strong>. The
+more strongly an image matches its caption, the more the negation is penalised. So the six failures are not a random
+subset: they are the images that are weak instances of their own label. Negation is penalised in proportion to how
+strongly the image supports the positive caption, which is what one would expect if "no X" is being treated as a
+slightly weaker statement about X rather than as a denial of it.</p>
+
+<h4>Task 3: one controlled change</h4>
+<p>One variable changed: the phrasing of the negation, from "a photo of no X" to "a photo with no X in it". Same
+images, same model, same computation.</p>
+<table>
+  <tr><th>Metric</th><th>a photo of no X</th><th>a photo with no X in it</th><th>Change</th></tr>
+  <tr><td>Images preferring positive</td><td>24 / 30</td><td>27 / 30</td><td>+3 (+0.100)</td></tr>
+  <tr><td>Mean |margin|</td><td>0.0098</td><td>0.0284</td><td>+0.0186</td></tr>
+</table>
+<p>Three images changed answer, all three in the same direction, and no image was lost. McNemar's exact two-sided test
+on those three discordant images gives <strong>p = 0.25</strong>, so the count change is not significant at this sample
+size. The margin change is the more interesting number: the mean margin nearly trebled, which is a change in how
+strongly the model separates the two captions rather than merely which one wins. Even so, 0.0284 remains about a third
+of the 0.0878 object margin.</p>
+<p>Alternative explanations: a wording effect speaks to the text encoder "with no X in it" is longer and more explicitly spatial, so it may differ from the positive caption in ways beyond the negation alone and with thirty images one image is worth 0.033 of the count, so only the margin change is
+comfortably outside noise.</p>
+
+<h4>Limits</h4>
+<ul>
+  <li>Five categories and thirty images. Category-level effects, such as the golden retriever result, rest on six images each.</li>
+  <li>Every image contains its object. The study never presents an image that genuinely lacks the object, so it measures whether negation is penalised.</li>
+  <li>Only two negation templates were tried. Other phrasings may behave differently - the one variant tested nearly trebled the margin, which already shows phrasing matters.</li>
+  <li>The effect is located in the text encoder. Nothing here shows the image encoder is at fault, and nothing here shows CLIP is unfit for the retrieval tasks it was built for.</li>
+</ul>
+
+<h4>Conclusion</h4>
+<p>On these thirty images CLIP registers negation but at the wrong order of magnitude. The positive caption is
+preferred in 24 of 30 cases, so the word "no" is not simply discarded, yet the mean
+separation it produces is about one ninth of the separation the same model uses to distinguish one object from another
+on the same images. The text-only measurements locate the cause: a caption and its own denial are nearly parallel
+vectors, so the image is choosing between two statements the encoder considers almost the same.</p>
+<p><strong>What would make this wrong.</strong> If the effect disappeared under a wider range of negation phrasings,
+the finding would be about two particular templates rather than about negation. If images genuinely lacking the object
+preferred the negated caption by a comparable margin, the model would be representing absence after all and this design
+would simply be insensitive to it. If the six failures turned out to be distributed at random rather than concentrated
+in weak instances, the proportionality argument would fail. And with five categories and thirty images a different
+collection could move the 24/30 appreciably, though it would have to move a long way to close a ninefold gap in scale.</p>
+
+<h2 id="different">9. What I would do differently</h2>
+<p><strong>Fix the evaluation rule before measuring, not after.</strong> Part 1's accuracy moved from 0.500 to 0.900
+purely by stating which predicted classes count as the same object. I discovered the sibling-class problem by
+inspecting failures after the fact. The rule should have been written down with the category list, before any model was
+run.</p>
+<p><strong>Validate test items against the label, not against the search query.</strong> The first Part 3 design failed
+because images were collected by keyword, and the keyword describes what a file is called. Four
+collection attempts produced accuracies that measured item quality. A visual audit of all twenty
+items should have been the first step after the first download.</p>
+<p><strong>Prefer designs where the manipulated variable is under exact control.</strong> The second design varied one
+word of text on images whose contents were already established, and produced an interpretable result on the first run.
+The difference between the two designs is not subject matter.</p>
+<p><strong>Size the sample against the effect being looked for.</strong> With twenty images one flipped item is worth
+0.05 of accuracy, so the Part 3 wording comparison could not have detected anything smaller than its own noise floor.</p>
+<p><strong>Record data problems rather than removing them.</strong> school_bus_01 is mislabelled and is kept, because
+dropping an item after seeing its score selects data on the outcome.</p>
+
+<h2 id="declaration">10. Declaration and appendix</h2>
+<p>Generative AI (Claude, Anthropic) was used while preparing this project: for help setting up the environment, for
+debugging the data-collection scripts, for drafting and editing this report, and for statistical checks on the results.
+The author ran all experiments on their own machine, and every number reported here comes from the output files in
+<code>results/</code>, which are included in the code submission.</p>
+<p>Commands to reproduce, in order:</p>
+<pre>python selftest.py
+python download_images_commons.py main
+python download_pairs_v2.py
+python part_1.py env
+python part_1.py all
+python part_2.py all
+python part_3.py all
+python part_3_margins.py
+python part_3b_negation.py all</pre>
+<p>Outputs: figures in <code>code/figures/</code>, tables in <code>results/</code>, environment in
+<code>results/environment.json</code>. Code is submitted separately on Blackboard.</p>
+
+<footer>
+<p>All images are Creative Commons or public domain, sourced from Wikimedia Commons. Per-file creator, licence, licence
+URL and source page are recorded in <a href="data/image_licences.csv">image_licences.csv</a> and
+<a href="data/pair_licences.csv">pair_licences.csv</a>.</p>
+<p>Coursework for CSCI 5499A / ENGR 6999F, Fall 2026, University of Mississippi.</p>
+</footer>
+
+</div>
+</body>
+</html>
